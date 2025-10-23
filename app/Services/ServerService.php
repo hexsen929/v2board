@@ -386,7 +386,27 @@ class ServerService
             $apiHost = config('v2board.server_api_url', config('v2board.app_url'));
             $apiKey = config('v2board.server_token', '');
             $nodeId = $v['id'];
-            $servers[$k]['install_command'] = "wget -N https://raw.githubusercontent.com/wyx2685/v2node/master/script/install.sh && bash install.sh --api-host {$apiHost} --node-id {$nodeId} --api-key {$apiKey}";
+            
+            // 检查是否有其他节点在同一台服务器上
+            $sameHostNodes = ServerV2node::where('host', $v['host'])
+                ->where('id', '!=', $v['id'])
+                ->pluck('id')
+                ->toArray();
+            
+            if (!empty($sameHostNodes)) {
+                // 多节点安装命令
+                $allNodeIds = array_merge([$nodeId], $sameHostNodes);
+                $nodeIdsStr = implode(' ', $allNodeIds);
+                $servers[$k]['install_command'] = "wget -N https://raw.githubusercontent.com/wyx2685/v2node/master/script/install.sh && bash install.sh --api-host {$apiHost} --node-id {$nodeIdsStr} --api-key {$apiKey}";
+                $servers[$k]['multi_node'] = true;
+                $servers[$k]['node_count'] = count($allNodeIds);
+                $servers[$k]['related_nodes'] = $allNodeIds;
+            } else {
+                // 单节点安装命令
+                $servers[$k]['install_command'] = "wget -N https://raw.githubusercontent.com/wyx2685/v2node/master/script/install.sh && bash install.sh --api-host {$apiHost} --node-id {$nodeId} --api-key {$apiKey}";
+                $servers[$k]['multi_node'] = false;
+                $servers[$k]['node_count'] = 1;
+            }
         }
         return $servers;
     }
